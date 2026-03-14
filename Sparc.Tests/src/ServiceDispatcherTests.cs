@@ -214,4 +214,22 @@ public partial class ServiceDispatcherTests
 		serviceCollection.AddSingleton<IParameterReader<int>, Int32ParameterReader>();
 		return new ServiceDispatcher<TService, TConnection>(serviceCollection.BuildServiceProvider());
 	}
+
+	private sealed class StringParameterReader : IParameterReader<string>
+	{
+		public string Read(ref PayloadReader reader)
+		{
+			var stringLength = BinaryPrimitives.ReadInt32LittleEndian(reader.Read(sizeof(int)));
+			var stringData = reader.Read(stringLength);
+			return Encoding.UTF8.GetString(stringData);
+		}
+	}
+
+	private sealed class Int32ParameterReader : IParameterReader<int>
+	{
+		public int Read(ref PayloadReader reader)
+		{
+			return BinaryPrimitives.ReadInt32LittleEndian(reader.Read(sizeof(int)));
+		}
+	}
 }
