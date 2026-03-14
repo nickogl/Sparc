@@ -37,7 +37,7 @@ public ref struct PayloadWriter : IDisposable
 	{
 		if (_buffer is not null)
 		{
-			ArrayPool<byte>.Shared.Return(_buffer);
+			new DisposeToken(ref this).Dispose();
 			_buffer = null!;
 			_written = 0;
 		}
@@ -85,5 +85,20 @@ public ref struct PayloadWriter : IDisposable
 		_buffer.AsSpan(0, _written).CopyTo(newBuffer);
 		ArrayPool<byte>.Shared.Return(_buffer);
 		_buffer = newBuffer;
+	}
+
+	/// <summary>
+	/// Shared disposer implementation for this type and async methods that need
+	/// an escape hatch (ref structs obviously cannot survive across await boundaries)
+	/// without duplicating/leaking implementation details.
+	/// </summary>
+	internal readonly struct DisposeToken(ref PayloadWriter writer) : IDisposable
+	{
+		private readonly byte[] _buffer = writer._buffer;
+
+		public void Dispose()
+		{
+			ArrayPool<byte>.Shared.Return(_buffer);
+		}
 	}
 }
