@@ -1,3 +1,4 @@
+using Sparc.Exceptions;
 using Sparc.IO;
 
 namespace Sparc.Tests;

@@ -1,3 +1,7 @@
+using Sparc.Exceptions;
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+
 namespace Sparc.IO;
 
 /// <summary>
@@ -37,7 +41,7 @@ public ref struct PayloadReader(ReadOnlySpan<byte> buffer)
 	/// Reads a slice of the requested length and advances the cursor.
 	/// </summary>
 	/// <remarks>
-	/// If your payload is delimiter-based, use <see cref="AvailableSpan"/> together with <see cref="Advance"/>.
+	/// If your payload is delimiter-based, use <see cref="AvailableSpan"/> in combination with <see cref="Advance"/>.
 	/// </remarks>
 	/// <exception cref="TruncatedPayloadException">
 	/// Thrown when the payload does not contain enough remaining bytes.
@@ -47,11 +51,18 @@ public ref struct PayloadReader(ReadOnlySpan<byte> buffer)
 		ArgumentOutOfRangeException.ThrowIfNegative(length);
 		if (_consumed + length > _buffer.Length)
 		{
-			throw new TruncatedPayloadException(_buffer.Length, _consumed, length);
+			ThrowTruncatedPayload(length);
 		}
 
 		var slice = _buffer.Slice(_consumed, length);
 		_consumed += length;
 		return slice;
+	}
+
+	[DoesNotReturn]
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private void ThrowTruncatedPayload(int length)
+	{
+		throw new TruncatedPayloadException(_buffer.Length, _consumed, length);
 	}
 }

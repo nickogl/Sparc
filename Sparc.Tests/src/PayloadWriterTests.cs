@@ -1,7 +1,7 @@
 
 using Sparc.IO;
 
-namespace Sparc;
+namespace Sparc.Tests;
 
 public class PayloadWriterTests
 {
