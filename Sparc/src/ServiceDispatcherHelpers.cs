@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using Sparc.Exceptions;
 using Sparc.IO;
 using System.Collections.Concurrent;
@@ -24,7 +23,7 @@ internal static class ServiceDispatcherHelpers
 		}
 
 		var readerType = typeof(IParameterReader<>).MakeGenericType(parameterType);
-		var readerImplementation = di.GetRequiredService(readerType);
+		var readerImplementation = di.GetParameterReaderOrWriterService(readerType);
 		var readMethod = readerType.GetMethod(nameof(IParameterReader<>.Read))!;
 		return ParameterReadersByType[parameterType] = (readerImplementation, readMethod);
 	}

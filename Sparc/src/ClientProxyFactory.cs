@@ -98,7 +98,7 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 			il.Emit(OpCodes.Ldarg_1);
 			il.Emit(OpCodes.Call, ClientProxyFactoryHelpers.GetRequiredServiceByType.GetOrAdd(field.FieldType, type =>
 			{
-				return ClientProxyFactoryHelpers.GetRequiredServiceMethod.MakeGenericMethod(type);
+				return ClientProxyFactoryHelpers.GetParameterReaderOrWriterMethod.MakeGenericMethod(type);
 			}));
 			il.Emit(OpCodes.Stfld, field);
 		}

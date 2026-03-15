@@ -35,6 +35,8 @@ public static class ClientProxyFactoryHelpers
 	internal readonly static ConstructorInfo PayloadWriterConstructor =
 		typeof(PayloadWriter).GetConstructor([typeof(int)])!;
 
+	internal readonly static MethodInfo GetParameterReaderOrWriterMethod =
+		typeof(ClientProxyFactoryHelpers).GetMethod(nameof(ResolveWriterService))!;
 	internal readonly static MethodInfo WriteOperationIdMethod =
 		typeof(ClientProxyFactoryHelpers).GetMethod(nameof(WriteOperationId))!;
 	internal readonly static MethodInfo WrappedSendMethod =
@@ -47,6 +49,11 @@ public static class ClientProxyFactoryHelpers
 		typeof(OperationMetrics).GetMethod(nameof(OperationMetrics.RecordOutboundPayloadSize))!;
 	internal readonly static MethodInfo PayloadWriterGetWrittenMethod =
 		typeof(PayloadWriter).GetProperty(nameof(PayloadWriter.Written))!.GetGetMethod()!;
+
+	public static object ResolveWriterService<T>(IServiceProvider services)
+	{
+		return ServiceProviderExtensions.GetParameterReaderOrWriterService(services, typeof(T));
+	}
 
 	public static void WriteOperationId(ref PayloadWriter writer, int operationId)
 	{
