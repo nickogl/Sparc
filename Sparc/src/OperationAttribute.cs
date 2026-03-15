@@ -20,14 +20,15 @@ public sealed class OperationAttribute(int operationId) : Attribute
 	/// <summary>
 	/// Set the initial size of the buffer used to write this operation's parameters
 	/// to call an operation on the client. This does nothing for services, however,
-	/// your transport layer can use this value for buffers when receiving data.
+	/// your transport layer can use this value for buffers when receiving data. This
+	/// value also includes the operation ID (4 bytes) at the beginning of the payload.
 	/// </summary>
 	/// <remarks>
 	/// This is just an optimization to minimize re-pooling memory when the buffer
 	/// runs out of space. For operations with fixed payload size, simply set this
 	/// to the fixed payload size. For operations with dynamic payload sizes, set 
 	/// this to a value that allows most operations to only pool memory once. It
-	/// should be based on 
+	/// should be tuned based on the recorded metrics in the wild.
 	/// </remarks>
 	public int InitialBufferSize { get; set; } = 256;
 }

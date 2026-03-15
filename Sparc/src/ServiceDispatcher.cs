@@ -19,11 +19,14 @@ internal sealed class ServiceDispatcher<TService, TConnection> : IServiceDispatc
 	private readonly static PropertyInfo _payloadReaderEndProperty = typeof(PayloadReader).GetProperty(nameof(PayloadReader.End))!;
 	private readonly static ConstructorInfo _unconsumedExceptionConstructor = typeof(UnconsumedDataException).GetConstructor([typeof(int)])!;
 	private readonly static ConcurrentDictionary<Type, (object, MethodInfo)> _parameterReadersByType = [];
+	private readonly static string _contractName = typeof(TService).Name;
+	private readonly OperationMetrics _operationMetrics;
 	private readonly Dictionary<int, OperationWrapper> _operations;
 
 	public ServiceDispatcher(IServiceProvider di)
 	{
 		var service = di.GetRequiredService<TService>();
+		_operationMetrics = di.GetRequiredService<OperationMetrics>();
 		_operations = CompileOperations(service, di);
 	}
 
@@ -33,16 +36,17 @@ internal sealed class ServiceDispatcher<TService, TConnection> : IServiceDispatc
 		TConnection connection,
 		CancellationToken cancellationToken = default)
 	{
-		return _operations.TryGetValue(operationId, out var operation)
-			? operation(connection, payload, cancellationToken)
-			: ThrowUnknownOperation(operationId);
-
-		[DoesNotReturn]
-		[MethodImpl(MethodImplOptions.NoInlining)]
-		static ValueTask ThrowUnknownOperation(int operationId)
+		if (!_operations.TryGetValue(operationId, out var operation))
 		{
-			throw new UnknownOperationException(typeof(TService), operationId);
+			ThrowUnknownOperation(operationId);
 		}
+
+		_operationMetrics.RecordInboundPayloadSize(
+			_contractName,
+			operation.Method.Name,
+			operationId,
+			payload.Length + sizeof(int));
+		return operation(connection, payload, cancellationToken);
 	}
 
 	private static Dictionary<int, OperationWrapper> CompileOperations(TService service, IServiceProvider di)
@@ -96,7 +100,7 @@ internal sealed class ServiceDispatcher<TService, TConnection> : IServiceDispatc
 
 			var wrapperBody = Expression.Block(variables, statements);
 			var wrapperParams = new[] { connectionParameter, payloadParameter, cancellationTokenParameter };
-			var wrapper = Expression.Lambda<OperationWrapper>(wrapperBody, wrapperParams).Compile();
+			var wrapper = Expression.Lambda<OperationWrapper>(wrapperBody, method.Name, wrapperParams).Compile();
 			if (!result.TryAdd(metadata.OperationId, wrapper))
 			{
 				ThrowOperationError(method, "Operation ID is already used by another operation");
@@ -188,5 +192,12 @@ internal sealed class ServiceDispatcher<TService, TConnection> : IServiceDispatc
 	private static void ThrowOperationError(MethodInfo method, string error)
 	{
 		throw new ArgumentException($"Failed to compile operation '{method.DeclaringType?.FullName ?? "<global>"}.{method.Name}': {error}");
+	}
+
+	[DoesNotReturn]
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static void ThrowUnknownOperation(int operationId)
+	{
+		throw new UnknownOperationException(typeof(TService), operationId);
 	}
 }

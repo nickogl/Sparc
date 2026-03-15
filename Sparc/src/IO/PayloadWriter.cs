@@ -16,6 +16,9 @@ public ref struct PayloadWriter : IDisposable
 	/// <summary>Returns the portion of the internal buffer that has been written.</summary>
 	public readonly ReadOnlySpan<byte> WrittenSpan => _buffer.AsSpan(0, _written);
 
+	/// <summary>Returns the number of bytes written.</summary>
+	public readonly int Written => _written;
+
 	/// <summary>
 	/// Creates a new payload writer.
 	/// </summary>

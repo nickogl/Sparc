@@ -195,12 +195,56 @@ public partial class ServiceDispatcherTests
 		Assert.Equal("boom", exception.Message);
 	}
 
+	[Fact]
+	public async Task DispatchAsync_WhenOperationsAreInvoked_RecordsInboundMetricsWithExpectedLabelsAndValues()
+	{
+		using var metrics = new PayloadSizeMetricListener();
+		var firstDispatcher = CreateDispatcher<MetricsServiceA, TestConnection>(new MetricsServiceA());
+		var secondDispatcher = CreateDispatcher<MetricsServiceB, TestConnection>(new MetricsServiceB());
+		var connection = new TestConnection();
+		var intPayload = EncodeIntParameter(42);
+
+		await firstDispatcher.DispatchAsync(1, [], connection, default);
+		await firstDispatcher.DispatchAsync(2, intPayload, connection, default);
+		await secondDispatcher.DispatchAsync(1, [], connection, default);
+		await secondDispatcher.DispatchAsync(2, intPayload, connection, default);
+
+		var measurements = metrics.Measurements.Where(m =>
+			m.Kind == "inbound" &&
+			(m.Contract == nameof(MetricsServiceA) || m.Contract == nameof(MetricsServiceB))).ToArray();
+
+		Assert.Equal(4, measurements.Length);
+		Assert.Contains(measurements, m => m.Contract == nameof(MetricsServiceA)
+			&& m.Operation == nameof(MetricsServiceA.SharedAsync)
+			&& m.OperationId == 1
+			&& m.PayloadSize == sizeof(int));
+		Assert.Contains(measurements, m => m.Contract == nameof(MetricsServiceA)
+			&& m.Operation == nameof(MetricsServiceA.SharedWithValueAsync)
+			&& m.OperationId == 2
+			&& m.PayloadSize == sizeof(int) * 2);
+		Assert.Contains(measurements, m => m.Contract == nameof(MetricsServiceB)
+			&& m.Operation == nameof(MetricsServiceB.SharedAsync)
+			&& m.OperationId == 1
+			&& m.PayloadSize == sizeof(int));
+		Assert.Contains(measurements, m => m.Contract == nameof(MetricsServiceB)
+			&& m.Operation == nameof(MetricsServiceB.SharedWithValueAsync)
+			&& m.OperationId == 2
+			&& m.PayloadSize == sizeof(int) * 2);
+	}
+
 	private static byte[] EncodeStringParameter(string value)
 	{
 		var byteCount = Encoding.UTF8.GetByteCount(value);
 		var data = new byte[sizeof(int) + byteCount];
 		BinaryPrimitives.WriteInt32LittleEndian(data, byteCount);
 		Encoding.UTF8.GetBytes(value, data.AsSpan(sizeof(int)));
+		return data;
+	}
+
+	private static byte[] EncodeIntParameter(int value)
+	{
+		var data = new byte[sizeof(int)];
+		BinaryPrimitives.WriteInt32LittleEndian(data, value);
 		return data;
 	}
 
@@ -212,24 +256,8 @@ public partial class ServiceDispatcherTests
 		serviceCollection.AddSingleton(service);
 		serviceCollection.AddSingleton<IParameterReader<string>, StringParameterReader>();
 		serviceCollection.AddSingleton<IParameterReader<int>, Int32ParameterReader>();
+		serviceCollection.AddMetrics();
+		serviceCollection.AddSingleton<OperationMetrics>();
 		return new ServiceDispatcher<TService, TConnection>(serviceCollection.BuildServiceProvider());
-	}
-
-	private sealed class StringParameterReader : IParameterReader<string>
-	{
-		public string Read(ref PayloadReader reader)
-		{
-			var stringLength = BinaryPrimitives.ReadInt32LittleEndian(reader.Read(sizeof(int)));
-			var stringData = reader.Read(stringLength);
-			return Encoding.UTF8.GetString(stringData);
-		}
-	}
-
-	private sealed class Int32ParameterReader : IParameterReader<int>
-	{
-		public int Read(ref PayloadReader reader)
-		{
-			return BinaryPrimitives.ReadInt32LittleEndian(reader.Read(sizeof(int)));
-		}
 	}
 }

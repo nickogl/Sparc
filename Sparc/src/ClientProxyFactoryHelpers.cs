@@ -1,5 +1,6 @@
 using Sparc.IO;
 using System.Buffers.Binary;
+using System.Reflection;
 using System.Reflection.Emit;
 
 namespace Sparc;
@@ -17,6 +18,11 @@ public static class ClientProxyFactoryHelpers
 		AssemblyBuilder
 			.DefineDynamicAssembly(new("Sparc.ClientProxy"), AssemblyBuilderAccess.Run)
 			.DefineDynamicModule("Sparc.ClientProxy");
+
+	internal readonly static MethodInfo RecordOutboundPayloadSizeMethod =
+		typeof(OperationMetrics).GetMethod(nameof(OperationMetrics.RecordOutboundPayloadSize))!;
+	internal readonly static MethodInfo PayloadWriterGetWrittenMethod =
+		typeof(PayloadWriter).GetProperty(nameof(PayloadWriter.Written))!.GetGetMethod()!;
 
 	public static void WriteOperationId(ref PayloadWriter writer, int operationId)
 	{

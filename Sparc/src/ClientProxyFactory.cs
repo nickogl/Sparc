@@ -55,28 +55,31 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 			TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.Class);
 		proxy.AddInterfaceImplementation(typeof(TClient));
 
+		// Field for the metrics instance to record outbound payload sizes
+		var metricsField = proxy.DefineField("_metrics", typeof(OperationMetrics), FieldAttributes.Private | FieldAttributes.InitOnly);
 		// Fields containing the effective parameter writer implementations
-		var proxyFields = new Dictionary<Type, FieldBuilder>();
+		var writerFields = new Dictionary<Type, FieldBuilder>();
 		foreach (var operation in operations)
 		{
 			foreach (var parameter in operation.EffectiveParameters)
 			{
-				if (!proxyFields.ContainsKey(parameter.ParameterType))
+				if (!writerFields.ContainsKey(parameter.ParameterType))
 				{
-					proxyFields[parameter.ParameterType] = proxy.DefineField(
-						$"_parameterWriter{proxyFields.Count}",
+					writerFields[parameter.ParameterType] = proxy.DefineField(
+						$"_parameterWriter{writerFields.Count}",
 						typeof(IParameterWriter<>).MakeGenericType(parameter.ParameterType),
 						FieldAttributes.Private | FieldAttributes.InitOnly);
 				}
 			}
 		}
 
+
 		// Constructor to assign the writer fields which are ultimately used in the operations
 		var proxyConstructor = proxy.DefineConstructor(
 			MethodAttributes.Public,
 			CallingConventions.Standard,
 			[typeof(IServiceProvider)]);
-		EmitClientConstructor(proxyConstructor.GetILGenerator(), proxyFields.Values);
+		EmitClientConstructor(proxyConstructor.GetILGenerator(), metricsField, writerFields.Values);
 
 		// One class method for each client operation
 		foreach (var operation in operations)
@@ -87,7 +90,7 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 				operation.Method.ReturnType,
 				[.. operation.Parameters.Select(p => p.ParameterType)]);
 			proxy.DefineMethodOverride(proxyOperation, operation.Method);
-			EmitClientOperation(proxyOperation.GetILGenerator(), operation, proxyFields);
+			EmitClientOperation(proxyOperation.GetILGenerator(), operation, metricsField, writerFields);
 		}
 
 		var proxyType = proxy.CreateType();
@@ -95,13 +98,23 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 		return (TClient)Activator.CreateInstance(proxyType, services)!;
 	}
 
-	private static void EmitClientConstructor(ILGenerator il, IEnumerable<FieldBuilder> fields)
+	private static void EmitClientConstructor(ILGenerator il, FieldBuilder metricsField, IEnumerable<FieldBuilder> writerFields)
 	{
 		il.Emit(OpCodes.Ldarg_0);
 		il.Emit(OpCodes.Call, _objectConstructor);
-		foreach (var field in fields)
+
+		// _metrics = serviceProvider.GetRequiredService<OperationMetrics>()
+		il.Emit(OpCodes.Ldarg_0);
+		il.Emit(OpCodes.Ldarg_1);
+		il.Emit(OpCodes.Call, _getRequiredServiceByType.GetOrAdd(typeof(OperationMetrics), type =>
 		{
-			// _parameterWriterN = serviceProvider.GetRequiredService<ParamWriterN>()
+			return _getRequiredServiceMethod.MakeGenericMethod(type);
+		}));
+		il.Emit(OpCodes.Stfld, metricsField);
+
+		// _parameterWriter0..N = serviceProvider.GetRequiredService<ParamWriter0..N>()
+		foreach (var field in writerFields)
+		{
 			il.Emit(OpCodes.Ldarg_0);
 			il.Emit(OpCodes.Ldarg_1);
 			il.Emit(OpCodes.Call, _getRequiredServiceByType.GetOrAdd(field.FieldType, type =>
@@ -110,26 +123,27 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 			}));
 			il.Emit(OpCodes.Stfld, field);
 		}
+
 		il.Emit(OpCodes.Ret);
 	}
 
-	private static void EmitClientOperation(ILGenerator il, OperationSpec operation, Dictionary<Type, FieldBuilder> fields)
+	private static void EmitClientOperation(ILGenerator il, OperationSpec operation, FieldBuilder metricsField, Dictionary<Type, FieldBuilder> writerFields)
 	{
-		// var payloadWriter = new PayloadWriter(initialBufferSize);
+		// var payloadWriter = new PayloadWriter(initialBufferSize)
 		var writerLocal = il.DeclareLocal(typeof(PayloadWriter));
 		il.Emit(OpCodes.Ldc_I4, operation.Metadata.InitialBufferSize);
 		il.Emit(OpCodes.Newobj, _payloadWriterConstructor);
 		il.Emit(OpCodes.Stloc, writerLocal);
 
-		// WriteOperationIdToBuffer(ref payloadWriter, operationId);
+		// WriteOperationIdToBuffer(ref payloadWriter, operationId)
 		il.Emit(OpCodes.Ldloca_S, writerLocal);
 		il.Emit(OpCodes.Ldc_I4, operation.Metadata.OperationId);
 		il.Emit(OpCodes.Call, _writeOperationId);
 
+		// _parameterWriter0..N.Write(ref payloadWriter, parameter0..N)
 		for (int index = 0; index < operation.EffectiveParameters.Length; index++)
 		{
-			// _parameterWriterN.Write(ref payloadWriter, parameterN);
-			var field = fields[operation.EffectiveParameters[index].ParameterType];
+			var field = writerFields[operation.EffectiveParameters[index].ParameterType];
 			il.Emit(OpCodes.Ldarg_0);
 			il.Emit(OpCodes.Ldfld, field);
 			il.Emit(OpCodes.Ldloca_S, writerLocal);
@@ -139,6 +153,16 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 				return type.GetMethod(nameof(IParameterWriter<>.Write))!;
 			}));
 		}
+
+		// _metrics.RecordOutboundPayloadSize(contract, operation, operationId, payloadWriter.Written)
+		il.Emit(OpCodes.Ldarg_0);
+		il.Emit(OpCodes.Ldfld, metricsField);
+		il.Emit(OpCodes.Ldstr, typeof(TClient).Name);
+		il.Emit(OpCodes.Ldstr, operation.Method.Name);
+		il.Emit(OpCodes.Ldc_I4, operation.Metadata.OperationId);
+		il.Emit(OpCodes.Ldloca_S, writerLocal);
+		il.Emit(OpCodes.Call, ClientProxyFactoryHelpers.PayloadWriterGetWrittenMethod);
+		il.Emit(OpCodes.Callvirt, ClientProxyFactoryHelpers.RecordOutboundPayloadSizeMethod);
 
 		// WrappedSendAsync(connection, ref payloadWriter, cancellationToken)
 		// We wrap the send call here because in case it does not complete synchronously,

@@ -243,11 +243,51 @@ public partial class ClientProxyFactoryTests
 		Assert.Equal(connection.LastPayload?.ToArray(), [1, 0, 0, 0, 5, 0, 0, 0, 104, 101, 108, 108, 111]);
 	}
 
+	[Fact]
+	public async Task Proxy_WhenOperationsAreInvoked_RecordsOutboundMetricsWithExpectedLabelsAndValues()
+	{
+		using var metrics = new PayloadSizeMetricListener();
+		var firstFactory = CreateClientProxyFactory<IMetricsClientA>();
+		var firstProxy = firstFactory.Create();
+		var secondFactory = CreateClientProxyFactory<IMetricsClientB>();
+		var secondProxy = secondFactory.Create();
+		var connection = new TestConnection();
+
+		await firstProxy.SharedAsync(connection, default);
+		await firstProxy.SharedWithValueAsync(connection, 42, default);
+		await secondProxy.SharedAsync(connection, default);
+		await secondProxy.SharedWithValueAsync(connection, 42, default);
+
+		var measurements = metrics.Measurements.Where(m =>
+			m.Kind == "outbound" &&
+			(m.Contract == nameof(IMetricsClientA) || m.Contract == nameof(IMetricsClientB))).ToArray();
+
+		Assert.Equal(4, measurements.Length);
+		Assert.Contains(measurements, m => m.Contract == nameof(IMetricsClientA)
+			&& m.Operation == nameof(IMetricsClientA.SharedAsync)
+			&& m.OperationId == 1
+			&& m.PayloadSize == sizeof(int));
+		Assert.Contains(measurements, m => m.Contract == nameof(IMetricsClientA)
+			&& m.Operation == nameof(IMetricsClientA.SharedWithValueAsync)
+			&& m.OperationId == 2
+			&& m.PayloadSize == sizeof(int) * 2);
+		Assert.Contains(measurements, m => m.Contract == nameof(IMetricsClientB)
+			&& m.Operation == nameof(IMetricsClientB.SharedAsync)
+			&& m.OperationId == 1
+			&& m.PayloadSize == sizeof(int));
+		Assert.Contains(measurements, m => m.Contract == nameof(IMetricsClientB)
+			&& m.Operation == nameof(IMetricsClientB.SharedWithValueAsync)
+			&& m.OperationId == 2
+			&& m.PayloadSize == sizeof(int) * 2);
+	}
+
 	private static ClientProxyFactory<TClient> CreateClientProxyFactory<TClient>() where TClient : class
 	{
 		var serviceCollection = new ServiceCollection();
 		serviceCollection.AddSingleton<IParameterWriter<string>, StringParameterWriter>();
 		serviceCollection.AddSingleton<IParameterWriter<int>, Int32ParameterWriter>();
+		serviceCollection.AddMetrics();
+		serviceCollection.AddSingleton<OperationMetrics>();
 		return new ClientProxyFactory<TClient>(serviceCollection.BuildServiceProvider());
 	}
 }

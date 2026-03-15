@@ -146,6 +146,24 @@ public partial class ClientProxyFactoryTests
 		ValueTask SendAsync(IClientConnection connection, int number, CancellationToken cancellationToken);
 	}
 
+	public interface IMetricsClientA
+	{
+		[Operation(1)]
+		ValueTask SharedAsync(IClientConnection connection, CancellationToken cancellationToken);
+
+		[Operation(2)]
+		ValueTask SharedWithValueAsync(IClientConnection connection, int value, CancellationToken cancellationToken);
+	}
+
+	public interface IMetricsClientB
+	{
+		[Operation(1)]
+		ValueTask SharedAsync(IClientConnection connection, CancellationToken cancellationToken);
+
+		[Operation(2)]
+		ValueTask SharedWithValueAsync(IClientConnection connection, int value, CancellationToken cancellationToken);
+	}
+
 	private sealed class StringParameterWriter : IParameterWriter<string>
 	{
 		public void Write(ref PayloadWriter writer, string value)
@@ -170,6 +188,7 @@ public partial class ClientProxyFactoryTests
 			writer.Advance(sizeof(int));
 		}
 	}
+
 }
 
 #pragma warning restore IDE0060 // Remove unused parameter

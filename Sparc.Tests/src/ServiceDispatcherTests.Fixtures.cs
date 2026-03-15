@@ -174,6 +174,43 @@ public partial class ServiceDispatcherTests
 		[Operation(1)]
 		public ValueTask SendAsync(TestConnection connection, int value) => ValueTask.CompletedTask;
 	}
+
+	private sealed class MetricsServiceA
+	{
+		[Operation(1)]
+		public ValueTask SharedAsync(TestConnection connection) => ValueTask.CompletedTask;
+
+		[Operation(2)]
+		public ValueTask SharedWithValueAsync(TestConnection connection, int value) => ValueTask.CompletedTask;
+	}
+
+	private sealed class MetricsServiceB
+	{
+		[Operation(1)]
+		public ValueTask SharedAsync(TestConnection connection) => ValueTask.CompletedTask;
+
+		[Operation(2)]
+		public ValueTask SharedWithValueAsync(TestConnection connection, int value) => ValueTask.CompletedTask;
+	}
+
+	private sealed class StringParameterReader : IParameterReader<string>
+	{
+		public string Read(ref PayloadReader reader)
+		{
+			var stringLength = BinaryPrimitives.ReadInt32LittleEndian(reader.Read(sizeof(int)));
+			var stringData = reader.Read(stringLength);
+			return Encoding.UTF8.GetString(stringData);
+		}
+	}
+
+	private sealed class Int32ParameterReader : IParameterReader<int>
+	{
+		public int Read(ref PayloadReader reader)
+		{
+			return BinaryPrimitives.ReadInt32LittleEndian(reader.Read(sizeof(int)));
+		}
+	}
+
 }
 
 #pragma warning restore IDE0060 // Remove unused parameter
