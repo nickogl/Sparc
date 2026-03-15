@@ -8,7 +8,7 @@ namespace Sparc.Tests;
 public class DefaultWriterTests
 {
 	[Fact]
-	public void WriteBoolean_WhenValueIsTrue_WritesOneByte()
+	public void Boolean_WhenValueIsTrue_WritesOneByte()
 	{
 		var payload = Write(true);
 
@@ -16,7 +16,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteBoolean_WhenValueIsFalse_WritesZeroByte()
+	public void Boolean_WhenValueIsFalse_WritesZeroByte()
 	{
 		var payload = Write(false);
 
@@ -24,7 +24,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteByte_WhenValueIsProvided_WritesSingleByte()
+	public void Byte_WhenValueIsProvided_WritesSingleByte()
 	{
 		var payload = Write((byte)0xAB);
 
@@ -32,7 +32,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteSByte_WhenValueIsProvided_WritesSingleByte()
+	public void SByte_WhenValueIsProvided_WritesSingleByte()
 	{
 		var payload = Write((sbyte)-2);
 
@@ -40,7 +40,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteInt16_WhenValueIsProvided_WritesLittleEndian()
+	public void Int16_WhenValueIsProvided_WritesLittleEndian()
 	{
 		var payload = Write((short)-1234);
 
@@ -48,7 +48,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteUInt16_WhenValueIsProvided_WritesLittleEndian()
+	public void UInt16_WhenValueIsProvided_WritesLittleEndian()
 	{
 		var payload = Write((ushort)65000);
 
@@ -56,7 +56,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteInt32_WhenValueIsProvided_WritesLittleEndian()
+	public void Int32_WhenValueIsProvided_WritesLittleEndian()
 	{
 		var payload = Write(-123456789);
 
@@ -64,7 +64,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteUInt32_WhenValueIsProvided_WritesLittleEndian()
+	public void UInt32_WhenValueIsProvided_WritesLittleEndian()
 	{
 		var payload = Write(4_000_000_000u);
 
@@ -72,7 +72,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteInt64_WhenValueIsProvided_WritesLittleEndian()
+	public void Int64_WhenValueIsProvided_WritesLittleEndian()
 	{
 		var payload = Write(0x0102030405060708L);
 
@@ -80,7 +80,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteUInt64_WhenValueIsProvided_WritesLittleEndian()
+	public void UInt64_WhenValueIsProvided_WritesLittleEndian()
 	{
 		var payload = Write(0x99AABBCCDDEEFF00UL);
 
@@ -88,7 +88,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteInt128_WhenValueIsProvided_WritesLittleEndian()
+	public void Int128_WhenValueIsProvided_WritesLittleEndian()
 	{
 		var value = (Int128)(-1);
 
@@ -100,7 +100,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteUInt128_WhenValueIsProvided_WritesLittleEndian()
+	public void UInt128_WhenValueIsProvided_WritesLittleEndian()
 	{
 		var value = ((UInt128)0x1122334455667788UL << 64) | 0x99AABBCCDDEEFF00UL;
 
@@ -112,7 +112,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteFloat_WhenValueIsProvided_WritesIeeeBitsAsLittleEndian()
+	public void Float_WhenValueIsProvided_WritesIeeeBitsAsLittleEndian()
 	{
 		var payload = Write(123.5f);
 
@@ -120,7 +120,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteDouble_WhenValueIsProvided_WritesIeeeBitsAsLittleEndian()
+	public void Double_WhenValueIsProvided_WritesIeeeBitsAsLittleEndian()
 	{
 		var payload = Write(1.5d);
 
@@ -128,7 +128,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteString_WhenValueIsProvided_WritesLengthPrefixedUtf8()
+	public void String_WhenValueIsProvided_WritesLengthPrefixedUtf8()
 	{
 		var payload = Write("hello");
 
@@ -136,13 +136,13 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteString_WhenValueIsNull_ThrowsArgumentNullException()
+	public void String_WhenValueIsNull_ThrowsArgumentNullException()
 	{
 		Assert.Throws<ArgumentNullException>(() => Write<string>(null!));
 	}
 
 	[Fact]
-	public void WriteString_WhenValueContainsInvalidUtf16_ThrowsArgumentException()
+	public void String_WhenValueContainsInvalidUtf16_ThrowsArgumentException()
 	{
 		var invalid = "\uD800";
 
@@ -150,7 +150,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteChar_WhenValueIsBmpCharacter_WritesUtf8Sequence()
+	public void Char_WhenValueIsBmpCharacter_WritesUtf8Sequence()
 	{
 		var payload = Write('A');
 
@@ -158,13 +158,13 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteChar_WhenValueIsInvalidSurrogate_ThrowsArgumentException()
+	public void Char_WhenValueIsInvalidSurrogate_ThrowsArgumentException()
 	{
 		Assert.Throws<ArgumentException>(() => Write('\uD800'));
 	}
 
 	[Fact]
-	public void WriteDecimal_WhenValueIsProvided_WritesInvariantText()
+	public void Decimal_WhenValueIsProvided_WritesInvariantText()
 	{
 		var value = 12345.6789m;
 
@@ -174,7 +174,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteGuid_WhenValueIsProvided_WritesCanonicalDFormat()
+	public void Guid_WhenValueIsProvided_WritesCanonicalDFormat()
 	{
 		var value = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff");
 
@@ -184,7 +184,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteDateTime_WhenValueIsProvided_WritesRoundTripText()
+	public void DateTime_WhenValueIsProvided_WritesRoundTripText()
 	{
 		var value = new DateTime(2026, 3, 15, 10, 11, 12, DateTimeKind.Utc).AddTicks(1234);
 
@@ -194,7 +194,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteDateTimeOffset_WhenValueIsProvided_WritesRoundTripText()
+	public void DateTimeOffset_WhenValueIsProvided_WritesRoundTripText()
 	{
 		var value = new DateTimeOffset(2026, 3, 15, 10, 11, 12, TimeSpan.FromHours(2)).AddTicks(1234);
 
@@ -204,7 +204,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteTimeSpan_WhenValueIsProvided_WritesRoundedMilliseconds()
+	public void TimeSpan_WhenValueIsProvided_WritesRoundedMilliseconds()
 	{
 		var value = TimeSpan.FromTicks(12_345);
 
@@ -214,7 +214,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteTimeSpan_WhenValueIsNegative_WritesRoundedMillisecondsAwayFromZero()
+	public void TimeSpan_WhenValueIsNegative_WritesRoundedMillisecondsAwayFromZero()
 	{
 		var value = TimeSpan.FromTicks(-15_000);
 
@@ -224,7 +224,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteArray_WhenValuesAreProvided_WritesLengthAndItems()
+	public void Array_WhenValuesAreProvided_WritesLengthAndItems()
 	{
 		var payload = Write(new[] { 10, 20, 30 });
 
@@ -236,13 +236,13 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteArray_WhenValueIsNull_ThrowsNullReferenceException()
+	public void Array_WhenValueIsNull_ThrowsNullReferenceException()
 	{
 		Assert.Throws<NullReferenceException>(() => Write<int[]>(null!));
 	}
 
 	[Fact]
-	public void WriteList_WhenValuesAreProvided_WritesLengthAndItems()
+	public void List_WhenValuesAreProvided_WritesLengthAndItems()
 	{
 		var payload = Write(new List<int> { 1, 2, 3 });
 
@@ -254,19 +254,19 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteList_WhenValueIsNull_ThrowsNullReferenceException()
+	public void List_WhenValueIsNull_ThrowsNullReferenceException()
 	{
 		Assert.Throws<NullReferenceException>(() => Write<List<int>>(null!));
 	}
 
 	[Fact]
-	public void WriteDictionary_WhenValueIsNull_ThrowsNullReferenceException()
+	public void Dictionary_WhenValueIsNull_ThrowsNullReferenceException()
 	{
 		Assert.Throws<NullReferenceException>(() => Write<Dictionary<string, int>>(null!));
 	}
 
 	[Fact]
-	public void WriteNullable_WhenValueIsNull_WritesZeroPrefix()
+	public void Nullable_WhenValueIsNull_WritesZeroPrefix()
 	{
 		var payload = Write<int?>(null);
 
@@ -274,7 +274,7 @@ public class DefaultWriterTests
 	}
 
 	[Fact]
-	public void WriteNullable_WhenValueIsPresent_WritesOnePrefixAndValue()
+	public void Nullable_WhenValueIsPresent_WritesOnePrefixAndValue()
 	{
 		var payload = Write<int?>(42);
 

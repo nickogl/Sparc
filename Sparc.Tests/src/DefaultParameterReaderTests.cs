@@ -11,7 +11,7 @@ namespace Sparc.Tests;
 public class DefaultReaderTests
 {
 	[Fact]
-	public void ReadBoolean_WhenPayloadIsValid_ReturnsValue()
+	public void Boolean_WhenPayloadIsValid_ReturnsValue()
 	{
 		var result = Read<bool>([1]);
 
@@ -19,13 +19,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadBoolean_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
+	public void Boolean_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
 	{
 		Assert.Throws<TruncatedPayloadException>(() => Read<bool>([]));
 	}
 
 	[Fact]
-	public void ReadByte_WhenPayloadIsValid_ReturnsValue()
+	public void Byte_WhenPayloadIsValid_ReturnsValue()
 	{
 		var result = Read<byte>([0xAB]);
 
@@ -33,13 +33,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadByte_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
+	public void Byte_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
 	{
 		Assert.Throws<TruncatedPayloadException>(() => Read<byte>([]));
 	}
 
 	[Fact]
-	public void ReadSByte_WhenPayloadIsValid_ReturnsValue()
+	public void SByte_WhenPayloadIsValid_ReturnsValue()
 	{
 		var result = Read<sbyte>([(byte)0xFE]);
 
@@ -47,13 +47,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadSByte_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
+	public void SByte_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
 	{
 		Assert.Throws<TruncatedPayloadException>(() => Read<sbyte>([]));
 	}
 
 	[Fact]
-	public void ReadInt16_WhenPayloadIsValid_ReturnsValue()
+	public void Int16_WhenPayloadIsValid_ReturnsValue()
 	{
 		var payload = new byte[sizeof(short)];
 		BinaryPrimitives.WriteInt16LittleEndian(payload, -1234);
@@ -64,13 +64,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadInt16_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
+	public void Int16_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
 	{
 		Assert.Throws<TruncatedPayloadException>(() => Read<short>([0x01]));
 	}
 
 	[Fact]
-	public void ReadUInt16_WhenPayloadIsValid_ReturnsValue()
+	public void UInt16_WhenPayloadIsValid_ReturnsValue()
 	{
 		var payload = new byte[sizeof(ushort)];
 		BinaryPrimitives.WriteUInt16LittleEndian(payload, 65000);
@@ -81,13 +81,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadUInt16_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
+	public void UInt16_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
 	{
 		Assert.Throws<TruncatedPayloadException>(() => Read<ushort>([0x01]));
 	}
 
 	[Fact]
-	public void ReadInt32_WhenPayloadIsValid_ReturnsValue()
+	public void Int32_WhenPayloadIsValid_ReturnsValue()
 	{
 		var payload = new byte[sizeof(int)];
 		BinaryPrimitives.WriteInt32LittleEndian(payload, -123456789);
@@ -98,13 +98,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadInt32_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
+	public void Int32_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
 	{
 		Assert.Throws<TruncatedPayloadException>(() => Read<int>([1, 2, 3]));
 	}
 
 	[Fact]
-	public void ReadUInt32_WhenPayloadIsValid_ReturnsValue()
+	public void UInt32_WhenPayloadIsValid_ReturnsValue()
 	{
 		var payload = new byte[sizeof(uint)];
 		BinaryPrimitives.WriteUInt32LittleEndian(payload, 4_000_000_000);
@@ -115,13 +115,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadUInt32_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
+	public void UInt32_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
 	{
 		Assert.Throws<TruncatedPayloadException>(() => Read<uint>([1, 2, 3]));
 	}
 
 	[Fact]
-	public void ReadInt64_WhenPayloadIsValid_ReturnsValue()
+	public void Int64_WhenPayloadIsValid_ReturnsValue()
 	{
 		var payload = new byte[sizeof(long)];
 		BinaryPrimitives.WriteInt64LittleEndian(payload, -9_000_000_000_000_000_000);
@@ -132,13 +132,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadInt64_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
+	public void Int64_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
 	{
 		Assert.Throws<TruncatedPayloadException>(() => Read<long>([1, 2, 3, 4, 5, 6, 7]));
 	}
 
 	[Fact]
-	public void ReadUInt64_WhenPayloadIsValid_ReturnsValue()
+	public void UInt64_WhenPayloadIsValid_ReturnsValue()
 	{
 		var payload = new byte[sizeof(ulong)];
 		BinaryPrimitives.WriteUInt64LittleEndian(payload, 18_000_000_000_000_000_000);
@@ -149,13 +149,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadUInt64_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
+	public void UInt64_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
 	{
 		Assert.Throws<TruncatedPayloadException>(() => Read<ulong>([1, 2, 3, 4, 5, 6, 7]));
 	}
 
 	[Fact]
-	public void ReadInt128_WhenPayloadIsValid_ReturnsValue()
+	public void Int128_WhenPayloadIsValid_ReturnsValue()
 	{
 		var payload = new byte[16];
 		var expected = Int128.Parse("-17014118346046923173168730371588410572");
@@ -167,13 +167,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadInt128_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
+	public void Int128_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
 	{
 		Assert.Throws<TruncatedPayloadException>(() => Read<Int128>(new byte[15]));
 	}
 
 	[Fact]
-	public void ReadUInt128_WhenPayloadIsValid_ReturnsValue()
+	public void UInt128_WhenPayloadIsValid_ReturnsValue()
 	{
 		var payload = new byte[16];
 		var expected = UInt128.Parse("34028236692093846346337460743176821145");
@@ -185,13 +185,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadUInt128_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
+	public void UInt128_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
 	{
 		Assert.Throws<TruncatedPayloadException>(() => Read<UInt128>(new byte[15]));
 	}
 
 	[Fact]
-	public void ReadFloat_WhenPayloadIsValid_ReturnsValue()
+	public void Float_WhenPayloadIsValid_ReturnsValue()
 	{
 		var payload = new byte[sizeof(int)];
 		BinaryPrimitives.WriteInt32LittleEndian(payload, BitConverter.SingleToInt32Bits(123.5f));
@@ -202,13 +202,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadFloat_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
+	public void Float_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
 	{
 		Assert.Throws<TruncatedPayloadException>(() => Read<float>([1, 2, 3]));
 	}
 
 	[Fact]
-	public void ReadDouble_WhenPayloadIsValid_ReturnsValue()
+	public void Double_WhenPayloadIsValid_ReturnsValue()
 	{
 		var payload = new byte[sizeof(long)];
 		BinaryPrimitives.WriteInt64LittleEndian(payload, BitConverter.DoubleToInt64Bits(12345.6789));
@@ -219,13 +219,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadDouble_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
+	public void Double_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
 	{
 		Assert.Throws<TruncatedPayloadException>(() => Read<double>([1, 2, 3, 4, 5, 6, 7]));
 	}
 
 	[Fact]
-	public void ReadString_WhenPayloadIsValid_ReturnsValue()
+	public void String_WhenPayloadIsValid_ReturnsValue()
 	{
 		var result = Read<string>(EncodeString("hello"));
 
@@ -233,7 +233,7 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadString_WhenPayloadContainsInvalidUtf8_ThrowsMalformedPayloadException()
+	public void String_WhenPayloadContainsInvalidUtf8_ThrowsMalformedPayloadException()
 	{
 		var payload = new byte[sizeof(int) + 2];
 		BinaryPrimitives.WriteInt32LittleEndian(payload, 2);
@@ -244,7 +244,7 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadChar_WhenPayloadIsValid_ReturnsValue()
+	public void Char_WhenPayloadIsValid_ReturnsValue()
 	{
 		var result = Read<char>(Encoding.UTF8.GetBytes("A"));
 
@@ -252,19 +252,19 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadChar_WhenPayloadContainsInvalidUtf8_ThrowsMalformedPayloadException()
+	public void Char_WhenPayloadContainsInvalidUtf8_ThrowsMalformedPayloadException()
 	{
 		Assert.Throws<MalformedPayloadException>(() => Read<char>([0xC3, 0x28]));
 	}
 
 	[Fact]
-	public void ReadChar_WhenPayloadContainsNonBmpRune_ThrowsMalformedPayloadException()
+	public void Char_WhenPayloadContainsNonBmpRune_ThrowsMalformedPayloadException()
 	{
 		Assert.Throws<MalformedPayloadException>(() => Read<char>(Encoding.UTF8.GetBytes("😀")));
 	}
 
 	[Fact]
-	public void ReadDecimal_WhenPayloadIsValid_ReturnsValue()
+	public void Decimal_WhenPayloadIsValid_ReturnsValue()
 	{
 		var result = Read<decimal>(EncodeString("12345.6789"));
 
@@ -272,13 +272,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadDecimal_WhenPayloadContainsInvalidNumber_ThrowsMalformedPayloadException()
+	public void Decimal_WhenPayloadContainsInvalidNumber_ThrowsMalformedPayloadException()
 	{
 		Assert.Throws<MalformedPayloadException>(() => Read<decimal>(EncodeString("not-a-decimal")));
 	}
 
 	[Fact]
-	public void ReadGuid_WhenPayloadIsValid_ReturnsValue()
+	public void Guid_WhenPayloadIsValid_ReturnsValue()
 	{
 		var expected = Guid.NewGuid();
 
@@ -288,13 +288,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadGuid_WhenPayloadContainsInvalidValue_ThrowsMalformedPayloadException()
+	public void Guid_WhenPayloadContainsInvalidValue_ThrowsMalformedPayloadException()
 	{
 		Assert.Throws<MalformedPayloadException>(() => Read<Guid>(EncodeString("definitely-not-a-guid")));
 	}
 
 	[Fact]
-	public void ReadDateTime_WhenPayloadIsValid_ReturnsValue()
+	public void DateTime_WhenPayloadIsValid_ReturnsValue()
 	{
 		var expected = new DateTime(2026, 3, 15, 10, 11, 12, DateTimeKind.Utc).AddTicks(1234);
 
@@ -304,13 +304,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadDateTime_WhenPayloadContainsInvalidValue_ThrowsMalformedPayloadException()
+	public void DateTime_WhenPayloadContainsInvalidValue_ThrowsMalformedPayloadException()
 	{
 		Assert.Throws<MalformedPayloadException>(() => Read<DateTime>(EncodeString("2026-99-99T99:99:99.9999999Z")));
 	}
 
 	[Fact]
-	public void ReadDateTimeOffset_WhenPayloadIsValid_ReturnsValue()
+	public void DateTimeOffset_WhenPayloadIsValid_ReturnsValue()
 	{
 		var expected = new DateTimeOffset(2026, 3, 15, 10, 11, 12, TimeSpan.FromHours(2)).AddTicks(1234);
 
@@ -320,13 +320,13 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadDateTimeOffset_WhenPayloadContainsInvalidValue_ThrowsMalformedPayloadException()
+	public void DateTimeOffset_WhenPayloadContainsInvalidValue_ThrowsMalformedPayloadException()
 	{
 		Assert.Throws<MalformedPayloadException>(() => Read<DateTimeOffset>(EncodeString("2026-99-99T99:99:99.9999999+99:99")));
 	}
 
 	[Fact]
-	public void ReadTimeSpan_WhenPayloadIsValid_ReturnsValue()
+	public void TimeSpan_WhenPayloadIsValid_ReturnsValue()
 	{
 		var payload = new byte[sizeof(long)];
 		BinaryPrimitives.WriteInt64LittleEndian(payload, 1500);
@@ -337,7 +337,7 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadTimeSpan_WhenPayloadOverflows_ThrowsMalformedPayloadException()
+	public void TimeSpan_WhenPayloadOverflows_ThrowsMalformedPayloadException()
 	{
 		var payload = new byte[sizeof(long)];
 		BinaryPrimitives.WriteInt64LittleEndian(payload, long.MaxValue);
@@ -346,7 +346,7 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadArray_WhenPayloadIsValid_ReturnsValues()
+	public void Array_WhenPayloadIsValid_ReturnsValues()
 	{
 		var payload = Concat(
 			EncodeInt32(3),
@@ -360,7 +360,7 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadArray_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
+	public void Array_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
 	{
 		var payload = Concat(
 			EncodeInt32(2),
@@ -370,7 +370,7 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadList_WhenPayloadIsValid_ReturnsValues()
+	public void List_WhenPayloadIsValid_ReturnsValues()
 	{
 		var payload = Concat(
 			EncodeInt32(3),
@@ -384,7 +384,7 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadList_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
+	public void List_WhenPayloadIsTruncated_ThrowsTruncatedPayloadException()
 	{
 		var payload = Concat(
 			EncodeInt32(2),
@@ -394,7 +394,7 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadDictionary_WhenPayloadIsValid_ReturnsValues()
+	public void Dictionary_WhenPayloadIsValid_ReturnsValues()
 	{
 		var payload = Concat(
 			EncodeInt32(2),
@@ -409,7 +409,7 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadDictionary_WhenPayloadContainsDuplicateKey_ThrowsMalformedPayloadException()
+	public void Dictionary_WhenPayloadContainsDuplicateKey_ThrowsMalformedPayloadException()
 	{
 		var payload = Concat(
 			EncodeInt32(2),
@@ -420,7 +420,7 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadNullable_WhenPrefixIsZero_ReturnsNull()
+	public void Nullable_WhenPrefixIsZero_ReturnsNull()
 	{
 		var result = Read<int?>([0]);
 
@@ -428,7 +428,7 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadNullable_WhenPrefixIsOne_ReturnsValue()
+	public void Nullable_WhenPrefixIsOne_ReturnsValue()
 	{
 		var payload = Concat([1], EncodeInt32(42));
 
@@ -438,7 +438,7 @@ public class DefaultReaderTests
 	}
 
 	[Fact]
-	public void ReadNullable_WhenPrefixIsInvalid_ThrowsMalformedPayloadException()
+	public void Nullable_WhenPrefixIsInvalid_ThrowsMalformedPayloadException()
 	{
 		Assert.Throws<MalformedPayloadException>(() => Read<int?>([2]));
 	}
