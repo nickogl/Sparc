@@ -1,6 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
 using Sparc.IO;
-using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -9,25 +7,6 @@ namespace Sparc;
 
 internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient> where TClient : class
 {
-	private readonly static MethodInfo _getTypeFromHandleMethod =
-		typeof(Type).GetMethod(nameof(Type.GetTypeFromHandle), [typeof(RuntimeTypeHandle)])!;
-	private readonly static MethodInfo _getRequiredServiceMethod =
-		typeof(ServiceProviderServiceExtensions)
-			.GetMethods(BindingFlags.Public | BindingFlags.Static)
-			.Single(m =>
-				m.Name == nameof(ServiceProviderServiceExtensions.GetRequiredService) &&
-				m.IsGenericMethodDefinition &&
-				m.GetParameters().Length == 1);
-	private readonly static ConstructorInfo _objectConstructor =
-		typeof(object).GetConstructor(Type.EmptyTypes)!;
-	private readonly static ConstructorInfo _payloadWriterConstructor =
-		typeof(PayloadWriter).GetConstructor([typeof(int)])!;
-	private readonly static MethodInfo _writeOperationId =
-		typeof(ClientProxyFactoryHelpers).GetMethod(nameof(ClientProxyFactoryHelpers.WriteOperationId))!;
-	private readonly static MethodInfo _wrappedSendMethod =
-		typeof(ClientProxyFactoryHelpers).GetMethod(nameof(ClientProxyFactoryHelpers.WrappedSendAsync))!;
-	private readonly static ConcurrentDictionary<Type, MethodInfo> _getRequiredServiceByType = [];
-	private readonly static ConcurrentDictionary<Type, MethodInfo> _parameterWriteMethodByType = [];
 	private readonly TClient _client;
 
 	public ClientProxyFactory(IServiceProvider services)
@@ -101,14 +80,14 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 	private static void EmitClientConstructor(ILGenerator il, FieldBuilder metricsField, IEnumerable<FieldBuilder> writerFields)
 	{
 		il.Emit(OpCodes.Ldarg_0);
-		il.Emit(OpCodes.Call, _objectConstructor);
+		il.Emit(OpCodes.Call, ClientProxyFactoryHelpers.ObjectConstructor);
 
 		// _metrics = serviceProvider.GetRequiredService<OperationMetrics>()
 		il.Emit(OpCodes.Ldarg_0);
 		il.Emit(OpCodes.Ldarg_1);
-		il.Emit(OpCodes.Call, _getRequiredServiceByType.GetOrAdd(typeof(OperationMetrics), type =>
+		il.Emit(OpCodes.Call, ClientProxyFactoryHelpers.GetRequiredServiceByType.GetOrAdd(typeof(OperationMetrics), type =>
 		{
-			return _getRequiredServiceMethod.MakeGenericMethod(type);
+			return ClientProxyFactoryHelpers.GetRequiredServiceMethod.MakeGenericMethod(type);
 		}));
 		il.Emit(OpCodes.Stfld, metricsField);
 
@@ -117,9 +96,9 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 		{
 			il.Emit(OpCodes.Ldarg_0);
 			il.Emit(OpCodes.Ldarg_1);
-			il.Emit(OpCodes.Call, _getRequiredServiceByType.GetOrAdd(field.FieldType, type =>
+			il.Emit(OpCodes.Call, ClientProxyFactoryHelpers.GetRequiredServiceByType.GetOrAdd(field.FieldType, type =>
 			{
-				return _getRequiredServiceMethod.MakeGenericMethod(type);
+				return ClientProxyFactoryHelpers.GetRequiredServiceMethod.MakeGenericMethod(type);
 			}));
 			il.Emit(OpCodes.Stfld, field);
 		}
@@ -132,13 +111,13 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 		// var payloadWriter = new PayloadWriter(initialBufferSize)
 		var writerLocal = il.DeclareLocal(typeof(PayloadWriter));
 		il.Emit(OpCodes.Ldc_I4, operation.Metadata.InitialBufferSize);
-		il.Emit(OpCodes.Newobj, _payloadWriterConstructor);
+		il.Emit(OpCodes.Newobj, ClientProxyFactoryHelpers.PayloadWriterConstructor);
 		il.Emit(OpCodes.Stloc, writerLocal);
 
 		// WriteOperationIdToBuffer(ref payloadWriter, operationId)
 		il.Emit(OpCodes.Ldloca_S, writerLocal);
 		il.Emit(OpCodes.Ldc_I4, operation.Metadata.OperationId);
-		il.Emit(OpCodes.Call, _writeOperationId);
+		il.Emit(OpCodes.Call, ClientProxyFactoryHelpers.WriteOperationIdMethod);
 
 		// _parameterWriter0..N.Write(ref payloadWriter, parameter0..N)
 		for (int index = 0; index < operation.EffectiveParameters.Length; index++)
@@ -148,7 +127,7 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 			il.Emit(OpCodes.Ldfld, field);
 			il.Emit(OpCodes.Ldloca_S, writerLocal);
 			LoadOperationParameter(il, index);
-			il.Emit(OpCodes.Callvirt, _parameterWriteMethodByType.GetOrAdd(field.FieldType, type =>
+			il.Emit(OpCodes.Callvirt, ClientProxyFactoryHelpers.ParameterWriteMethodByType.GetOrAdd(field.FieldType, type =>
 			{
 				return type.GetMethod(nameof(IParameterWriter<>.Write))!;
 			}));
@@ -171,7 +150,7 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 		il.Emit(OpCodes.Ldarg_1);
 		il.Emit(OpCodes.Ldloca_S, writerLocal);
 		LoadOperationParameter(il, operation.EffectiveParameters.Length);
-		il.Emit(OpCodes.Call, _wrappedSendMethod);
+		il.Emit(OpCodes.Call, ClientProxyFactoryHelpers.WrappedSendMethod);
 		il.Emit(OpCodes.Ret);
 
 		static void LoadOperationParameter(ILGenerator il, int index)
