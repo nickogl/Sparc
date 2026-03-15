@@ -159,7 +159,7 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 			// by 2 due to the "this" pointer and connection parameter
 			if (index == 0) il.Emit(OpCodes.Ldarg_2);
 			else if (index == 1) il.Emit(OpCodes.Ldarg_3);
-			else il.Emit(OpCodes.Ldarga_S, (byte)(index + 2));
+			else il.Emit(OpCodes.Ldarg_S, (byte)(index + 2));
 		}
 	}
 
