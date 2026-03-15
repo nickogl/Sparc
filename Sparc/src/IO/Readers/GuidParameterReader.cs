@@ -11,7 +11,7 @@ internal sealed class GuidParameterReader(IParameterReader<string> stringReader)
 	public Guid Read(ref PayloadReader reader)
 	{
 		var text = _stringReader.Read(ref reader);
-		if (!Guid.TryParse(text, out var result))
+		if (!Guid.TryParseExact(text, "D", out var result))
 		{
 			ThrowInvalidFormat(text);
 		}

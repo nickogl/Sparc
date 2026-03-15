@@ -3,15 +3,20 @@ namespace Sparc.Exceptions;
 /// <summary>
 /// Base type for all exceptions caused by a malformed payload.
 /// </summary>
-public abstract class MalformedPayloadException : Exception
+public class MalformedPayloadException : Exception
 {
 	/// <inheritdoc/>
-	protected MalformedPayloadException()
+	public MalformedPayloadException()
 	{
 	}
 
 	/// <inheritdoc/>
-	protected MalformedPayloadException(string message) : base(message)
+	public MalformedPayloadException(string message) : base(message)
+	{
+	}
+
+	/// <inheritdoc/>
+	public MalformedPayloadException(string message, Exception inner) : base(message, inner)
 	{
 	}
 }
