@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Sparc.IO;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
@@ -54,6 +55,8 @@ public static class ClientProxyFactoryHelpers
 	internal readonly static MethodInfo PayloadWriterGetWrittenMethod =
 		typeof(PayloadWriter).GetProperty(nameof(PayloadWriter.Written))!.GetGetMethod()!;
 
+	private const int BroadcastDefaultInitialBufferSize = 64;
+
 	public static object ResolveWriterService<T>(IServiceProvider services)
 	{
 		return ServiceProviderExtensions.GetParameterReaderOrWriterService(services, typeof(T));
@@ -76,27 +79,34 @@ public static class ClientProxyFactoryHelpers
 
 	public static ValueTask BroadcastAsync(IEnumerable<IClientConnection> connections, ref PayloadWriter writer, CancellationToken cancellationToken)
 	{
-		List<Task>? pendingWrites = null;
-		List<Exception>? errors = null;
+		var bufferSize = GetBroadcastBufferSize(connections);
+		var pendingWrites = new BroadcastBuffer<ValueTask>(bufferSize);
+		var errors = new BroadcastBuffer<Exception>(bufferSize);
 		foreach (var connection in connections)
+		{
+			QueueSendTask(connection, ref writer);
+		}
+
+		return pendingWrites.Written == 0
+			? BroadcastAsyncFast(ref writer, ref errors)
+			: BroadcastAsyncSlow(new(ref writer), pendingWrites, errors);
+
+		// NOTE: Moving this to a separate function eliminates an allocation without affecting throughput
+		void QueueSendTask(IClientConnection connection, ref PayloadWriter writer)
 		{
 			try
 			{
 				var pendingWrite = connection.SendAsync(writer.WrittenMemory, cancellationToken);
 				if (!pendingWrite.IsCompletedSuccessfully)
 				{
-					(pendingWrites ??= []).Add(pendingWrite.AsTask());
+					pendingWrites.Add(pendingWrite);
 				}
 			}
 			catch (Exception e)
 			{
-				(errors ??= []).Add(e);
+				errors.Add(e);
 			}
 		}
-
-		return pendingWrites is null
-			? BroadcastAsyncFast(ref writer, errors)
-			: BroadcastAsyncSlow(pendingWrites, errors, new(ref writer));
 	}
 
 	private static ValueTask WrappedSendAsyncFast(ref PayloadWriter writer)
@@ -105,6 +115,8 @@ public static class ClientProxyFactoryHelpers
 		return ValueTask.CompletedTask;
 	}
 
+	// NOTE: Avoid async-path allocation in broadcast hot path (validated by benchmarks)
+	[AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
 	private static async ValueTask WrappedSendAsyncSlow(ValueTask pendingWrite, PayloadWriter.DisposeToken token)
 	{
 		try
@@ -117,11 +129,12 @@ public static class ClientProxyFactoryHelpers
 		}
 	}
 
-	private static ValueTask BroadcastAsyncFast(ref PayloadWriter writer, List<Exception>? errors)
+	private static ValueTask BroadcastAsyncFast(ref PayloadWriter writer, ref BroadcastBuffer<Exception> errors)
 	{
+		// All writes completed synchronously, safe to release
 		writer.Dispose();
 
-		if (errors is not null)
+		if (errors.Written > 0)
 		{
 			ThrowBroadcastFailed(errors);
 		}
@@ -130,38 +143,97 @@ public static class ClientProxyFactoryHelpers
 
 	}
 
-	private static async ValueTask BroadcastAsyncSlow(List<Task> pendingWrites, List<Exception>? errors, PayloadWriter.DisposeToken token)
+	// NOTE: Avoid async-path allocation in broadcast hot path (validated by benchmarks)
+	[AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
+	private static async ValueTask BroadcastAsyncSlow(
+		PayloadWriter.DisposeToken token,
+		BroadcastBuffer<ValueTask> pendingWrites,
+		BroadcastBuffer<Exception> errors)
 	{
-		try
+		for (int i = 0; i < pendingWrites.Written; i++)
 		{
-			foreach (var pendingWrite in pendingWrites)
+			try
 			{
-				try
-				{
-					await pendingWrite.ConfigureAwait(false);
-				}
-				catch (Exception e)
-				{
-					(errors ??= []).Add(e);
-				}
+				await pendingWrites.Values[i].ConfigureAwait(false);
+			}
+			catch (Exception e)
+			{
+				errors.Add(e);
 			}
 		}
-		finally
-		{
-			token.Dispose();
-		}
 
-		if (errors is not null)
+		// Now safe to release since all writes are complete and no longer access the data
+		token.Dispose();
+		pendingWrites.Dispose();
+
+		if (errors.Written > 0)
 		{
 			ThrowBroadcastFailed(errors);
 		}
 	}
 
+	private static int GetBroadcastBufferSize(IEnumerable<IClientConnection> connections)
+	{
+		return connections is ICollection<IClientConnection> sequence
+			? sequence.Count
+			: BroadcastDefaultInitialBufferSize;
+	}
+
 	[DoesNotReturn]
 	[MethodImpl(MethodImplOptions.NoInlining)]
-	private static void ThrowBroadcastFailed(List<Exception> errors)
+	private static void ThrowBroadcastFailed(BroadcastBuffer<Exception> buffer)
 	{
+		var errors = buffer.Copy();
+		buffer.Dispose();
 		throw new AggregateException("One or more broadcast sends failed", errors);
+	}
+
+	private struct BroadcastBuffer<T>(int size)
+	{
+		private readonly int _size = size;
+		private T[]? _values;
+		private int _written = 0;
+
+		public readonly T[] Values => _values ?? [];
+		public readonly int Written => _written;
+
+		public readonly void Dispose()
+		{
+			if (_values is not null)
+			{
+				ArrayPool<T>.Shared.Return(_values, clearArray: true);
+			}
+		}
+
+		public readonly T[] Copy()
+		{
+			var copy = new T[Written];
+			Values.AsSpan(0, Written).CopyTo(copy);
+			return copy;
+		}
+
+		public void Add(T value)
+		{
+			var buffer = EnsureCapacity();
+			buffer[_written++] = value;
+		}
+
+		private T[] EnsureCapacity()
+		{
+			if (_values is null)
+			{
+				return _values = ArrayPool<T>.Shared.Rent(_size);
+			}
+			if (_written < _values.Length)
+			{
+				return _values;
+			}
+
+			var newValues = ArrayPool<T>.Shared.Rent(_values.Length * 2);
+			_values.AsSpan(0, _written).CopyTo(newValues);
+			ArrayPool<T>.Shared.Return(_values, clearArray: true);
+			return _values = newValues;
+		}
 	}
 }
 
