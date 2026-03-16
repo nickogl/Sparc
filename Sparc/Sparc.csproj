@@ -7,6 +7,27 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <IncludeSymbols>true</IncludeSymbols>
+    <PackageId>Sparc</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Nicolas Kogler</Authors>
+    <RepositoryUrl>https://github.com/nickogl/Sparc</RepositoryUrl>
+    <Title>Transport-agnostic .NET RPC for real-time applications</Title>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageTags>rpc;realtime;networking;transport-agnostic;serialization;binary-protocol;low-latency;high-performance;dotnet;aspnetcore;codegen;dependency-injection</PackageTags>
+    <PackageDescription>Transport-agnostic .NET RPC for real-time applications</PackageDescription>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>sparc.png</PackageIcon>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../LICENSE" Pack="true" PackagePath="" />
+    <None Include="../README.md" Pack="true" PackagePath="" />
+    <None Include="../sparc.png" Pack="true" PackagePath="" />
+  </ItemGroup>
+
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Sparc.Tests</_Parameter1>
