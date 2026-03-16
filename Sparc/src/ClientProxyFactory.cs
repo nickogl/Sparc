@@ -143,14 +143,16 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 		il.Emit(OpCodes.Call, ClientProxyFactoryHelpers.PayloadWriterGetWrittenMethod);
 		il.Emit(OpCodes.Callvirt, ClientProxyFactoryHelpers.RecordOutboundPayloadSizeMethod);
 
-		// WrappedSendAsync(connection, ref payloadWriter, cancellationToken)
-		// We wrap the send call here because in case it does not complete synchronously,
-		// we have to await it before we can safely dispose of the payload writer's buffer
-		// and we cannot do that here without generating the async state machine ourselves
+		// SendAsync(connection, ref payloadWriter, cancellationToken)
+		//
+		// We wrap the send call here with a method from our library, because in case
+		// it does not complete synchronously, we have to await it before we can safely
+		// dispose of the payload writer's buffer and we cannot do that here without
+		// generating the async state machine ourselves
 		il.Emit(OpCodes.Ldarg_1);
 		il.Emit(OpCodes.Ldloca_S, writerLocal);
 		LoadOperationParameter(il, operation.EffectiveParameters.Length);
-		il.Emit(OpCodes.Call, ClientProxyFactoryHelpers.WrappedSendMethod);
+		il.Emit(OpCodes.Call, operation.SendMethod);
 		il.Emit(OpCodes.Ret);
 
 		static void LoadOperationParameter(ILGenerator il, int index)
@@ -192,10 +194,17 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 			{
 				ThrowProxyError(method, "Connection type must not be passed by reference");
 			}
-			if (parameters[0].ParameterType != typeof(IClientConnection))
+
+			var sendMethod = ClientProxyFactoryHelpers.WrappedSendMethod;
+			if (parameters[0].ParameterType == typeof(IEnumerable<IClientConnection>))
 			{
-				ThrowProxyError(method, "Connection type must be of type 'IClientConnection'");
+				sendMethod = ClientProxyFactoryHelpers.BroadcastMethod;
 			}
+			else if (parameters[0].ParameterType != typeof(IClientConnection))
+			{
+				ThrowProxyError(method, "Connection type must be of type 'IClientConnection' (single send) or 'IEnumerable<IClientConnection>' (broadcast)");
+			}
+
 			for (int i = 1; i < parameters.Length - 1; i++)
 			{
 				var parameter = parameters[i];
@@ -215,7 +224,7 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 
 			var effectiveParameters = new ParameterInfo[parameters.Length - 2];
 			parameters.AsSpan(1..^1).CopyTo(effectiveParameters);
-			yield return new(method, parameters, effectiveParameters, metadata);
+			yield return new(method, parameters, effectiveParameters, metadata, sendMethod);
 		}
 	}
 
@@ -252,7 +261,8 @@ internal sealed class ClientProxyFactory<TClient> : IClientProxyFactory<TClient>
 		MethodInfo Method,
 		ParameterInfo[] Parameters,
 		ParameterInfo[] EffectiveParameters,
-		OperationAttribute Metadata)
+		OperationAttribute Metadata,
+		MethodInfo SendMethod)
 	{
 	}
 }

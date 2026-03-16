@@ -2,8 +2,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Sparc.IO;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 
 namespace Sparc;
 
@@ -41,6 +43,8 @@ public static class ClientProxyFactoryHelpers
 		typeof(ClientProxyFactoryHelpers).GetMethod(nameof(WriteOperationId))!;
 	internal readonly static MethodInfo WrappedSendMethod =
 		typeof(ClientProxyFactoryHelpers).GetMethod(nameof(WrappedSendAsync))!;
+	internal readonly static MethodInfo BroadcastMethod =
+		typeof(ClientProxyFactoryHelpers).GetMethod(nameof(BroadcastAsync))!;
 
 	internal readonly static ConcurrentDictionary<Type, MethodInfo> GetRequiredServiceByType = [];
 	internal readonly static ConcurrentDictionary<Type, MethodInfo> ParameterWriteMethodByType = [];
@@ -70,13 +74,38 @@ public static class ClientProxyFactoryHelpers
 			: WrappedSendAsyncSlow(pendingWrite, new(ref writer));
 	}
 
+	public static ValueTask BroadcastAsync(IEnumerable<IClientConnection> connections, ref PayloadWriter writer, CancellationToken cancellationToken)
+	{
+		List<Task>? pendingWrites = null;
+		List<Exception>? errors = null;
+		foreach (var connection in connections)
+		{
+			try
+			{
+				var pendingWrite = connection.SendAsync(writer.WrittenMemory, cancellationToken);
+				if (!pendingWrite.IsCompletedSuccessfully)
+				{
+					(pendingWrites ??= []).Add(pendingWrite.AsTask());
+				}
+			}
+			catch (Exception e)
+			{
+				(errors ??= []).Add(e);
+			}
+		}
+
+		return pendingWrites is null
+			? BroadcastAsyncFast(ref writer, errors)
+			: BroadcastAsyncSlow(pendingWrites, errors, new(ref writer));
+	}
+
 	private static ValueTask WrappedSendAsyncFast(ref PayloadWriter writer)
 	{
 		writer.Dispose();
 		return ValueTask.CompletedTask;
 	}
 
-	private static async ValueTask WrappedSendAsyncSlow(ValueTask pendingWrite, PayloadWriter.DisposeToken bufferDisposer)
+	private static async ValueTask WrappedSendAsyncSlow(ValueTask pendingWrite, PayloadWriter.DisposeToken token)
 	{
 		try
 		{
@@ -84,8 +113,55 @@ public static class ClientProxyFactoryHelpers
 		}
 		finally
 		{
-			bufferDisposer.Dispose();
+			token.Dispose();
 		}
+	}
+
+	private static ValueTask BroadcastAsyncFast(ref PayloadWriter writer, List<Exception>? errors)
+	{
+		writer.Dispose();
+
+		if (errors is not null)
+		{
+			ThrowBroadcastFailed(errors);
+		}
+
+		return ValueTask.CompletedTask;
+
+	}
+
+	private static async ValueTask BroadcastAsyncSlow(List<Task> pendingWrites, List<Exception>? errors, PayloadWriter.DisposeToken token)
+	{
+		try
+		{
+			foreach (var pendingWrite in pendingWrites)
+			{
+				try
+				{
+					await pendingWrite.ConfigureAwait(false);
+				}
+				catch (Exception e)
+				{
+					(errors ??= []).Add(e);
+				}
+			}
+		}
+		finally
+		{
+			token.Dispose();
+		}
+
+		if (errors is not null)
+		{
+			ThrowBroadcastFailed(errors);
+		}
+	}
+
+	[DoesNotReturn]
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static void ThrowBroadcastFailed(List<Exception> errors)
+	{
+		throw new AggregateException("One or more broadcast sends failed", errors);
 	}
 }
 

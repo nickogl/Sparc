@@ -164,6 +164,12 @@ public partial class ClientProxyFactoryTests
 		ValueTask SharedWithValueAsync(IClientConnection connection, int value, CancellationToken cancellationToken);
 	}
 
+	public interface IBroadcastClient
+	{
+		[Operation(101)]
+		ValueTask BroadcastAsync(IEnumerable<IClientConnection> connections, CancellationToken cancellationToken);
+	}
+
 	private sealed class StringParameterWriter : IParameterWriter<string>
 	{
 		public void Write(ref PayloadWriter writer, string value)
@@ -186,6 +192,52 @@ public partial class ClientProxyFactoryTests
 			var span = writer.GetSpan(sizeof(int));
 			BinaryPrimitives.WriteInt32LittleEndian(span, value);
 			writer.Advance(sizeof(int));
+		}
+	}
+
+	private class BroadcastOperationIdConnection : IClientConnection
+	{
+		public int SendCallCount { get; private set; }
+		public int? OperationId { get; private set; }
+		public CancellationToken LastCancellationToken { get; private set; }
+
+		public virtual ValueTask SendAsync(ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default)
+		{
+			SendCallCount++;
+			OperationId = BinaryPrimitives.ReadInt32LittleEndian(payload.Span[..sizeof(int)]);
+			LastCancellationToken = cancellationToken;
+			return ValueTask.CompletedTask;
+		}
+	}
+
+	private sealed class BroadcastPendingConnection : BroadcastOperationIdConnection
+	{
+		private readonly TaskCompletionSource _sendCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		public override ValueTask SendAsync(ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default)
+		{
+			_ = base.SendAsync(payload, cancellationToken);
+			return new ValueTask(_sendCompletionSource.Task);
+		}
+
+		public void CompleteSend()
+		{
+			_sendCompletionSource.SetResult();
+		}
+
+		public void FailSend(Exception exception)
+		{
+			_sendCompletionSource.SetException(exception);
+		}
+	}
+
+	private sealed class BroadcastSyncThrowConnection(Exception exception) : IClientConnection
+	{
+		private readonly Exception _exception = exception;
+
+		public ValueTask SendAsync(ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default)
+		{
+			throw _exception;
 		}
 	}
 

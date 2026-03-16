@@ -281,6 +281,100 @@ public partial class ClientProxyFactoryTests
 			&& m.PayloadSize == sizeof(int) * 2);
 	}
 
+	[Fact]
+	public async Task Proxy_WhenBroadcastSendsCompleteSynchronously_CompletesSynchronouslyAndSendsToAllConnections()
+	{
+		var factory = CreateClientProxyFactory<IBroadcastClient>();
+		var proxy = factory.Create();
+		var first = new BroadcastOperationIdConnection();
+		var second = new BroadcastOperationIdConnection();
+		var cancellationToken = new CancellationToken(canceled: true);
+
+		var sendTask = proxy.BroadcastAsync([first, second], cancellationToken);
+
+		Assert.True(sendTask.IsCompletedSuccessfully);
+		await sendTask;
+		Assert.Equal(101, first.OperationId);
+		Assert.Equal(101, second.OperationId);
+		Assert.Equal(cancellationToken, first.LastCancellationToken);
+		Assert.Equal(cancellationToken, second.LastCancellationToken);
+	}
+
+	[Fact]
+	public async Task Proxy_WhenBroadcastHasPendingSend_ReturnsIncompleteValueTaskAndCompletesAfterPendingSend()
+	{
+		var factory = CreateClientProxyFactory<IBroadcastClient>();
+		var proxy = factory.Create();
+		var sync = new BroadcastOperationIdConnection();
+		var pending = new BroadcastPendingConnection();
+
+		var sendTask = proxy.BroadcastAsync([sync, pending], default);
+
+		Assert.False(sendTask.IsCompleted);
+		Assert.Equal(101, sync.OperationId);
+		Assert.Equal(101, pending.OperationId);
+
+		pending.CompleteSend();
+		await sendTask;
+	}
+
+	[Fact]
+	public async Task Proxy_WhenBroadcastSendThrowsSynchronously_ThrowsAggregateExceptionAndStillSendsToOtherConnections()
+	{
+		var factory = CreateClientProxyFactory<IBroadcastClient>();
+		var proxy = factory.Create();
+		var expected = new InvalidOperationException("sync-failed");
+		var throwing = new BroadcastSyncThrowConnection(expected);
+		var successful = new BroadcastOperationIdConnection();
+
+		var exception = await Assert.ThrowsAsync<AggregateException>(() => proxy.BroadcastAsync([throwing, successful], default).AsTask());
+
+		Assert.Single(exception.InnerExceptions);
+		Assert.Same(expected, exception.InnerExceptions[0]);
+		Assert.Equal(101, successful.OperationId);
+	}
+
+	[Fact]
+	public async Task Proxy_WhenBroadcastPendingSendFails_ThrowsAggregateExceptionWithInnerException()
+	{
+		var factory = CreateClientProxyFactory<IBroadcastClient>();
+		var proxy = factory.Create();
+		var pending = new BroadcastPendingConnection();
+
+		var sendTask = proxy.BroadcastAsync([pending], default);
+		Assert.False(sendTask.IsCompleted);
+
+		var expected = new InvalidOperationException("async-failed");
+		pending.FailSend(expected);
+
+		var exception = await Assert.ThrowsAsync<AggregateException>(sendTask.AsTask);
+		Assert.Single(exception.InnerExceptions);
+		Assert.Same(expected, exception.InnerExceptions[0]);
+		Assert.Equal(101, pending.OperationId);
+	}
+
+	[Fact]
+	public async Task Proxy_WhenBroadcastHasSyncAndAsyncFailures_AggregatesBothExceptions()
+	{
+		var factory = CreateClientProxyFactory<IBroadcastClient>();
+		var proxy = factory.Create();
+		var syncFailure = new InvalidOperationException("sync-failed");
+		var asyncFailure = new InvalidOperationException("async-failed");
+		var throwing = new BroadcastSyncThrowConnection(syncFailure);
+		var pending = new BroadcastPendingConnection();
+
+		var sendTask = proxy.BroadcastAsync([throwing, pending], default);
+		Assert.False(sendTask.IsCompleted);
+
+		pending.FailSend(asyncFailure);
+
+		var exception = await Assert.ThrowsAsync<AggregateException>(sendTask.AsTask);
+		Assert.Equal(2, exception.InnerExceptions.Count);
+		Assert.Contains(syncFailure, exception.InnerExceptions);
+		Assert.Contains(asyncFailure, exception.InnerExceptions);
+		Assert.Equal(101, pending.OperationId);
+	}
+
 	private static ClientProxyFactory<TClient> CreateClientProxyFactory<TClient>() where TClient : class
 	{
 		var serviceCollection = new ServiceCollection();
