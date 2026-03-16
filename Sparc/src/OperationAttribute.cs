@@ -17,6 +17,9 @@ public sealed class OperationAttribute(int operationId) : Attribute
 	/// <summary>Numeric identifier used to select the target operation.</summary>
 	public int OperationId { get; } = operationId;
 
+	/// <summary><see cref="OperationId"/> as a boxed value. Cached to prevent allocations when recording metrics.</summary>
+	public object BoxedOperationId { get; } = operationId;
+
 	/// <summary>
 	/// Set the initial size of the buffer used to write this operation's parameters
 	/// to call an operation on the client. This does nothing for services, however,

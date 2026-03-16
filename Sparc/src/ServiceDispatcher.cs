@@ -16,7 +16,7 @@ internal sealed class ServiceDispatcher<TService, TConnection> : IServiceDispatc
 
 	private readonly static string _contractName = typeof(TService).Name;
 	private readonly OperationMetrics _operationMetrics;
-	private readonly Dictionary<int, OperationWrapper> _operations;
+	private readonly Dictionary<int, OperationSpec> _operations;
 
 	public ServiceDispatcher(IServiceProvider di)
 	{
@@ -38,15 +38,15 @@ internal sealed class ServiceDispatcher<TService, TConnection> : IServiceDispatc
 
 		_operationMetrics.RecordInboundPayloadSize(
 			_contractName,
-			operation.Method.Name,
-			operationId,
+			operation.OperationName,
+			operation.Metadata.BoxedOperationId,
 			payload.Length + sizeof(int));
-		return operation(connection, payload, cancellationToken);
+		return operation.Wrapper(connection, payload, cancellationToken);
 	}
 
-	private static Dictionary<int, OperationWrapper> CompileOperations(TService service, IServiceProvider di)
+	private static Dictionary<int, OperationSpec> CompileOperations(TService service, IServiceProvider di)
 	{
-		var result = new Dictionary<int, OperationWrapper>();
+		var result = new Dictionary<int, OperationSpec>();
 		foreach (var (method, metadata) in FindOperations())
 		{
 			var parameters = ValidateOperation(method);
@@ -95,8 +95,8 @@ internal sealed class ServiceDispatcher<TService, TConnection> : IServiceDispatc
 
 			var wrapperBody = Expression.Block(variables, statements);
 			var wrapperParams = new[] { connectionParameter, payloadParameter, cancellationTokenParameter };
-			var wrapper = Expression.Lambda<OperationWrapper>(wrapperBody, method.Name, wrapperParams).Compile();
-			if (!result.TryAdd(metadata.OperationId, wrapper))
+			var wrapper = Expression.Lambda<OperationWrapper>(wrapperBody, wrapperParams).Compile();
+			if (!result.TryAdd(metadata.OperationId, new(wrapper, metadata, method.Name)))
 			{
 				ThrowOperationError(method, "Operation ID is already used by another operation");
 			}
@@ -181,5 +181,10 @@ internal sealed class ServiceDispatcher<TService, TConnection> : IServiceDispatc
 	private static void ThrowUnknownOperation(int operationId)
 	{
 		throw new UnknownOperationException(typeof(TService), operationId);
+	}
+
+	private readonly record struct OperationSpec(OperationWrapper Wrapper, OperationAttribute Metadata, string OperationName)
+	{
+		// NOTE: We are caching the operation name here because Wrapper.Method.Name in a hot path is expensive
 	}
 }

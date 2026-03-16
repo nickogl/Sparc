@@ -25,7 +25,7 @@ public sealed class OperationMetrics
 	public void RecordInboundPayloadSize(
 		string contract,
 		string operation,
-		int operationId,
+		object operationId,
 		int payloadSize)
 	{
 		RecordPayloadSize("inbound", contract, operation, operationId, payloadSize);
@@ -34,7 +34,7 @@ public sealed class OperationMetrics
 	public void RecordOutboundPayloadSize(
 		string contract,
 		string operation,
-		int operationId,
+		object operationId,
 		int payloadSize)
 	{
 		RecordPayloadSize("outbound", contract, operation, operationId, payloadSize);
@@ -44,9 +44,11 @@ public sealed class OperationMetrics
 		string kind,
 		string contract,
 		string operation,
-		int operationId,
+		object operationId,
 		int payloadSize)
 	{
+		Debug.Assert(operationId is int);
+
 		var tags = new TagList()
 		{
 			{ "kind", kind },
