@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.Metrics;
 using Sparc.IO;
 
 namespace Sparc.Tests;
@@ -279,6 +280,26 @@ public partial class ClientProxyFactoryTests
 			&& m.Operation == nameof(IMetricsClientB.SharedWithValueAsync)
 			&& m.OperationId == 2
 			&& m.PayloadSize == sizeof(int) * 2);
+	}
+
+	[Fact]
+	public async Task Proxy_WhenSparcMetricsAreDisabled_DoesNotRecordOutboundMetrics()
+	{
+		using var metrics = new PayloadSizeMetricListener();
+		var serviceCollection = new ServiceCollection();
+		serviceCollection.AddSingleton<IParameterWriter<string>, StringParameterWriter>();
+		serviceCollection.AddSingleton<IParameterWriter<int>, Int32ParameterWriter>();
+		serviceCollection.AddMetrics();
+		serviceCollection.Configure<MetricsOptions>(options => options.DisableMetrics("Sparc.*"));
+		serviceCollection.AddSingleton<OperationMetrics>();
+		var factory = new ClientProxyFactory<IMetricsClientA>(serviceCollection.BuildServiceProvider());
+		var proxy = factory.Create();
+		var connection = new TestConnection();
+
+		await proxy.SharedAsync(connection, default);
+
+		var measurements = metrics.Measurements.Where(m => m.Kind == "outbound" && m.Contract == nameof(IMetricsClientA)).ToArray();
+		Assert.Empty(measurements);
 	}
 
 	[Fact]

@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Diagnostics.Metrics;
+using Microsoft.Extensions.Options;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
@@ -11,15 +13,26 @@ namespace Sparc;
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public sealed class OperationMetrics
 {
-	private readonly Histogram<int> _operationPayloadSize;
+	private const string MeterName = "Sparc";
+	private const string PayloadSizeInstrumentName = "rpc.operation.payload.size";
 
-	public OperationMetrics(IMeterFactory meterFactory)
+	private readonly Histogram<int>? _payloadSize;
+
+	public OperationMetrics(IMeterFactory meterFactory, IOptions<MetricsOptions> options)
 	{
-		var meter = meterFactory.Create("Sparc");
-		_operationPayloadSize = meter.CreateHistogram<int>(
-			name: "rpc.operation.payload.size",
-			unit: "By",
-			description: "Serialized operation payload size in bytes, labelled by kind (inbound|outbound), contract, operation and operation_id");
+		var meter = meterFactory.Create(MeterName);
+		var optionsValue = options.Value;
+
+		// NOTE: Building a TagList and evaluating the rules in a hot path is expensive.
+		// Library consumers should not pay for what they do not need, so if they disabled
+		// the instrument, we cache this information and skip everything entirely.
+		if (IsInstrumentEnabled(PayloadSizeInstrumentName, optionsValue))
+		{
+			_payloadSize = meter.CreateHistogram<int>(
+				name: PayloadSizeInstrumentName,
+				unit: "By",
+				description: "Serialized operation payload size in bytes, labelled by kind (inbound|outbound), contract, operation and operation_id");
+		}
 	}
 
 	public void RecordInboundPayloadSize(
@@ -28,7 +41,10 @@ public sealed class OperationMetrics
 		object operationId,
 		int payloadSize)
 	{
-		RecordPayloadSize("inbound", contract, operation, operationId, payloadSize);
+		if (_payloadSize is not null)
+		{
+			RecordPayloadSize(_payloadSize, "inbound", contract, operation, operationId, payloadSize);
+		}
 	}
 
 	public void RecordOutboundPayloadSize(
@@ -37,10 +53,14 @@ public sealed class OperationMetrics
 		object operationId,
 		int payloadSize)
 	{
-		RecordPayloadSize("outbound", contract, operation, operationId, payloadSize);
+		if (_payloadSize is not null)
+		{
+			RecordPayloadSize(_payloadSize, "outbound", contract, operation, operationId, payloadSize);
+		}
 	}
 
-	private void RecordPayloadSize(
+	private static void RecordPayloadSize(
+		Histogram<int> instrument,
 		string kind,
 		string contract,
 		string operation,
@@ -56,7 +76,43 @@ public sealed class OperationMetrics
 			{ "operation", operation },
 			{ "operation_id", operationId },
 		};
-		_operationPayloadSize.Record(payloadSize, in tags);
+		instrument.Record(payloadSize, in tags);
+	}
+
+	private static bool IsInstrumentEnabled(string instrumentName, MetricsOptions options)
+	{
+		var result = AllEnabledByDefault(options);
+		foreach (var rule in options.Rules)
+		{
+			if (rule.MeterName is not null)
+			{
+				if (rule.MeterName.Equals($"{MeterName}.*", StringComparison.Ordinal) && rule.InstrumentName is null)
+				{
+					result = rule.Enable;
+				}
+				else if (
+					rule.MeterName.Equals(MeterName, StringComparison.Ordinal)
+					&& (rule.InstrumentName is null || rule.InstrumentName.Equals(instrumentName, StringComparison.Ordinal)))
+				{
+					result = rule.Enable;
+				}
+			}
+		}
+
+		return result;
+	}
+
+	private static bool AllEnabledByDefault(MetricsOptions options)
+	{
+		foreach (var rule in options.Rules)
+		{
+			if (rule.MeterName is null)
+			{
+				return rule.Enable;
+			}
+		}
+
+		return true;
 	}
 }
 

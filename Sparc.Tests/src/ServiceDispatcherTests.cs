@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.Metrics;
 using Sparc.Exceptions;
 using Sparc.IO;
 using System.Buffers.Binary;
@@ -230,6 +231,25 @@ public partial class ServiceDispatcherTests
 			&& m.Operation == nameof(MetricsServiceB.SharedWithValueAsync)
 			&& m.OperationId == 2
 			&& m.PayloadSize == sizeof(int) * 2);
+	}
+
+	[Fact]
+	public async Task DispatchAsync_WhenSparcMetricsAreDisabled_DoesNotRecordInboundMetrics()
+	{
+		using var metrics = new PayloadSizeMetricListener();
+		var serviceCollection = new ServiceCollection();
+		serviceCollection.AddSingleton(new MetricsServiceA());
+		serviceCollection.AddSingleton<IParameterReader<int>, Int32ParameterReader>();
+		serviceCollection.AddMetrics();
+		serviceCollection.Configure<MetricsOptions>(options => options.DisableMetrics("Sparc.*"));
+		serviceCollection.AddSingleton<OperationMetrics>();
+		var dispatcher = new ServiceDispatcher<MetricsServiceA, TestConnection>(serviceCollection.BuildServiceProvider());
+		var connection = new TestConnection();
+
+		await dispatcher.DispatchAsync(1, [], connection, default);
+
+		var measurements = metrics.Measurements.Where(m => m.Kind == "inbound" && m.Contract == nameof(MetricsServiceA)).ToArray();
+		Assert.Empty(measurements);
 	}
 
 	private static byte[] EncodeStringParameter(string value)
