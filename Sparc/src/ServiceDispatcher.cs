@@ -38,8 +38,8 @@ internal sealed class ServiceDispatcher<TService, TConnection> : IServiceDispatc
 
 		_operationMetrics.RecordInboundPayloadSize(
 			_contractName,
-			operation.OperationName,
-			operation.Metadata.BoxedOperationId,
+			operation.Name,
+			operation.BoxedId,
 			payload.Length + sizeof(int));
 		return operation.Wrapper(connection, payload, cancellationToken);
 	}
@@ -47,7 +47,7 @@ internal sealed class ServiceDispatcher<TService, TConnection> : IServiceDispatc
 	private static Dictionary<int, OperationSpec> CompileOperations(TService service, IServiceProvider di)
 	{
 		var result = new Dictionary<int, OperationSpec>();
-		foreach (var (method, metadata) in FindOperations())
+		foreach (var (method, metadata) in OperationAttribute.FindOperations<TService>())
 		{
 			var parameters = ValidateOperation(method);
 			var hasCancellationTokenParameter = HasCancellationTokenParameter(method, parameters);
@@ -96,28 +96,13 @@ internal sealed class ServiceDispatcher<TService, TConnection> : IServiceDispatc
 			var wrapperBody = Expression.Block(variables, statements);
 			var wrapperParams = new[] { connectionParameter, payloadParameter, cancellationTokenParameter };
 			var wrapper = Expression.Lambda<OperationWrapper>(wrapperBody, wrapperParams).Compile();
-			if (!result.TryAdd(metadata.OperationId, new(wrapper, metadata, method.Name)))
+			if (!result.TryAdd(metadata.OperationId, new(wrapper, metadata, metadata.OperationId, method.Name)))
 			{
 				ThrowOperationError(method, "Operation ID is already used by another operation");
 			}
 		}
 
 		return result;
-	}
-
-	private static IEnumerable<(MethodInfo, OperationAttribute)> FindOperations()
-	{
-		foreach (var implementedInterface in typeof(TService).GetInterfaces().Append(typeof(TService)))
-		{
-			foreach (var method in implementedInterface.GetMethods())
-			{
-				var operation = method.GetCustomAttribute<OperationAttribute>();
-				if (operation is not null)
-				{
-					yield return (method, operation);
-				}
-			}
-		}
 	}
 
 	private static ParameterInfo[] ValidateOperation(MethodInfo method)
@@ -183,8 +168,10 @@ internal sealed class ServiceDispatcher<TService, TConnection> : IServiceDispatc
 		throw new UnknownOperationException(typeof(TService), operationId);
 	}
 
-	private readonly record struct OperationSpec(OperationWrapper Wrapper, OperationAttribute Metadata, string OperationName)
+	private readonly record struct OperationSpec(OperationWrapper Wrapper, OperationAttribute Metadata, object BoxedId, string Name)
 	{
-		// NOTE: We are caching the operation name here because Wrapper.Method.Name in a hot path is expensive
+		// We are caching the boxed operation ID and the name here because:
+		// - Boxing in a hot path performs some allocations
+		// - Calling Wrapper.Method.Name in a hot path is expensive (relatively speaking)
 	}
 }
